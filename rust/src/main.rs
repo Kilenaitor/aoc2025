@@ -2,6 +2,7 @@ use clap::{Parser, ValueEnum};
 
 mod day1;
 mod day2;
+mod day3;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Part {
@@ -24,6 +25,7 @@ fn main() {
     match args.day {
         1 => day1::day1::run(args.part),
         2 => day2::day2::run(args.part),
+        3 => day3::day3::run(args.part),
         _ => panic!("Unsupported part"),
     };
 }
