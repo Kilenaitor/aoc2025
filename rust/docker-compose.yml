@@ -1,0 +1,8 @@
+services:
+  aoc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app/aoc2025
+    command: cargo watch -x 'run -- 2'
