@@ -88,7 +88,6 @@ fn part2() {
 
         for num in to_u64(low)..=to_u64(high) {
             if is_invalid(num) {
-                println!("{}", num);
                 invalid_total += num;
             }
         }
