@@ -1,5 +1,5 @@
 use crate::Part;
-use std::fs;
+use std::{cmp::Ordering, collections::HashSet, fs, sync::Arc};
 
 pub fn run(part: Part) {
     match part {
@@ -16,91 +16,216 @@ pub fn run(part: Part) {
     };
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct Point {
+    x: i64,
+    y: i64,
+    z: i64,
+}
+
+#[derive(Debug)]
+struct Distance {
+    p1: Arc<Point>,
+    p2: Arc<Point>,
+    d: f64,
+}
+
 fn part1() {
-    let input = fs::read_to_string("src/day5/input.txt")
+    let points = fs::read_to_string("src/day08/input.txt")
         .unwrap()
         .trim()
-        .split_once("\n\n")
-        .map(|i| (i.0.to_string(), i.1.to_string()))
-        .unwrap();
-    let ranges = input
-        .0
         .split("\n")
-        .map(|range| {
-            range
+        .map(|row| {
+            let mut iter = row
                 .trim()
-                .split_once("-")
-                .map(|num| (num.0.parse::<u64>().unwrap(), num.1.parse::<u64>().unwrap()))
-        })
-        .map(|range| range.unwrap())
-        .collect::<Vec<(u64, u64)>>();
-    let ingredient_ids = input
-        .1
-        .split("\n")
-        .map(|ingredient| ingredient.trim().parse::<u64>().unwrap())
-        .collect::<Vec<u64>>();
+                .splitn(3, ",")
+                .map(|coordinate| coordinate.parse::<i64>().unwrap());
 
-    let mut num_fresh = 0;
-    for ingredient_id in ingredient_ids {
-        for (low, high) in &ranges {
-            if ingredient_id >= *low && ingredient_id <= *high {
-                num_fresh += 1;
-                break;
-            }
+            Arc::new(Point {
+                x: iter.next().unwrap(),
+                y: iter.next().unwrap(),
+                z: iter.next().unwrap(),
+            })
+        })
+        .collect::<Vec<Arc<Point>>>();
+
+    let mut distances: Vec<Distance> = vec![];
+    for i in 0..points.len() {
+        for j in (i + 1)..points.len() {
+            let distance = (((points[i].x - points[j].x).pow(2)
+                + (points[i].y - points[j].y).pow(2)
+                + (points[i].z - points[j].z).pow(2)) as f64)
+                .sqrt();
+            distances.push(Distance {
+                p1: points[i].clone(),
+                p2: points[j].clone(),
+                d: distance,
+            });
         }
     }
-    println!("{:?}", num_fresh);
+
+    distances.sort_by(|d1, d2| {
+        if d2.d == d1.d {
+            Ordering::Equal
+        } else if d2.d > d1.d {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    });
+
+    let mut num_connections = 1000;
+    let mut circuits: Vec<HashSet<Arc<Point>>> = vec![];
+    for distance in &distances {
+        match (
+            circuits
+                .iter_mut()
+                .position(|circuit| circuit.contains(&distance.p1)),
+            circuits
+                .iter_mut()
+                .position(|circuit| circuit.contains(&distance.p2)),
+        ) {
+            (Some(c1_pos), Some(c2_pos)) => {
+                if c1_pos == c2_pos {
+                    // No-op. They're already in the same circuit.
+                } else {
+                    let new_circuit = circuits[c1_pos]
+                        .union(&circuits[c2_pos])
+                        .cloned()
+                        .collect::<HashSet<Arc<Point>>>();
+                    circuits[c1_pos] = new_circuit;
+                    circuits.swap_remove(c2_pos);
+                }
+            }
+            (Some(c1_pos), None) => {
+                circuits[c1_pos].insert(distance.p2.clone());
+            }
+            (None, Some(c2_pos)) => {
+                circuits[c2_pos].insert(distance.p1.clone());
+            }
+            (None, None) => {
+                let mut circuit = HashSet::new();
+                circuit.insert(distance.p1.clone());
+                circuit.insert(distance.p2.clone());
+                circuits.push(circuit);
+            }
+        }
+
+        num_connections -= 1;
+        if num_connections <= 0 {
+            break;
+        }
+    }
+
+    let mut circuit_sizes = circuits
+        .into_iter()
+        .map(|circuit| circuit.len())
+        .collect::<Vec<usize>>();
+    circuit_sizes.sort();
+
+    let mut total = circuit_sizes.pop().unwrap();
+    total *= circuit_sizes.pop().unwrap();
+    total *= circuit_sizes.pop().unwrap();
+
+    println!("{:?}", total);
 }
 
 fn part2() {
-    let mut input = fs::read_to_string("src/day5/input.txt")
+    let points = fs::read_to_string("src/day08/input.txt")
         .unwrap()
         .trim()
-        .split_once("\n\n")
-        .unwrap()
-        .0
         .split("\n")
-        .map(|range| {
-            range
+        .map(|row| {
+            let mut iter = row
                 .trim()
-                .split_once("-")
-                .map(|num| (num.0.parse::<u64>().unwrap(), num.1.parse::<u64>().unwrap()))
+                .splitn(3, ",")
+                .map(|coordinate| coordinate.parse::<i64>().unwrap());
+
+            Arc::new(Point {
+                x: iter.next().unwrap(),
+                y: iter.next().unwrap(),
+                z: iter.next().unwrap(),
+            })
         })
-        .map(|range| range.unwrap())
-        .collect::<Vec<(u64, u64)>>();
+        .collect::<Vec<Arc<Point>>>();
 
-    // Sorting the ranges by their opening value
-    // so we don't need to scan through the collapsed
-    // list.
-    input.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let mut ranges: Vec<(u64, u64)> = vec![];
-
-    for i in 0..input.len() {
-        if ranges.len() == 0 {
-            ranges.push(input[i]);
-            continue;
+    let mut distances: Vec<Distance> = vec![];
+    for i in 0..points.len() {
+        for j in (i + 1)..points.len() {
+            let distance = (((points[i].x - points[j].x).pow(2)
+                + (points[i].y - points[j].y).pow(2)
+                + (points[i].z - points[j].z).pow(2)) as f64)
+                .sqrt();
+            distances.push(Distance {
+                p1: points[i].clone(),
+                p2: points[j].clone(),
+                d: distance,
+            });
         }
+    }
 
-        let candidate_range = input[i];
-        let highest_range_index = ranges.len() - 1;
-        let highest_range = &mut ranges[highest_range_index];
-        if candidate_range.0 >= highest_range.0 && candidate_range.0 <= highest_range.1 {
-            // We have an overlap!
-            highest_range.1 = if candidate_range.1 > highest_range.1 {
-                candidate_range.1
-            } else {
-                highest_range.1
-            };
+    distances.sort_by(|d1, d2| {
+        if d2.d == d1.d {
+            Ordering::Equal
+        } else if d2.d > d1.d {
+            Ordering::Less
         } else {
-            ranges.push(candidate_range);
+            Ordering::Greater
+        }
+    });
+
+    let mut last_inserted_xes: (i64, i64) = (0, 0);
+    let mut circuits: Vec<HashSet<Arc<Point>>> = vec![];
+    for distance in &distances {
+        last_inserted_xes = (distance.p1.x, distance.p2.x);
+        match (
+            circuits
+                .iter_mut()
+                .position(|circuit| circuit.contains(&distance.p1)),
+            circuits
+                .iter_mut()
+                .position(|circuit| circuit.contains(&distance.p2)),
+        ) {
+            (Some(c1_pos), Some(c2_pos)) => {
+                if c1_pos == c2_pos {
+                    // No-op. They're already in the same circuit.
+                } else {
+                    let new_circuit = circuits[c1_pos]
+                        .union(&circuits[c2_pos])
+                        .cloned()
+                        .collect::<HashSet<Arc<Point>>>();
+                    circuits[c1_pos] = new_circuit;
+                    circuits.swap_remove(c2_pos);
+                }
+            }
+            (Some(c1_pos), None) => {
+                circuits[c1_pos].insert(distance.p2.clone());
+            }
+            (None, Some(c2_pos)) => {
+                circuits[c2_pos].insert(distance.p1.clone());
+            }
+            (None, None) => {
+                let mut circuit = HashSet::new();
+                circuit.insert(distance.p1.clone());
+                circuit.insert(distance.p2.clone());
+                circuits.push(circuit);
+            }
+        }
+
+        if circuits.len() == 1 {
+            if circuits[0].len() == points.len() {
+                println!("{}", distance.p1.x * distance.p2.x);
+                return;
+            }
         }
     }
 
-    let mut distinct_ids = 0;
-    for (low, high) in ranges {
-        distinct_ids += high - low + 1;
+    if circuits.len() == 1 {
+        if circuits[0].len() == points.len() {
+            println!("{:?}", last_inserted_xes.0 * last_inserted_xes.1);
+            return;
+        }
     }
 
-    println!("{}", distinct_ids);
+    println!("Never connected the full circuit");
 }
